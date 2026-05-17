@@ -81,7 +81,9 @@ export class ArticleManager {
 
     async buildImageArray(embedded, externalSrcs, article) {
         const images = [];
-        const sourceUrl = article.sourceUrl || '';
+        // Use baseUri (document.baseURI) for resolving placeholder URLs — it matches
+        // what Readability uses internally. Falls back to sourceUrl when not set.
+        const sourceUrl = article.baseUri || article.sourceUrl || '';
 
         // Readability absolutizes relative URLs against the page base URL.
         // Given we replaced img srcs with `images/id.ext` in the clone,

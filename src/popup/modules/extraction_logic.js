@@ -231,7 +231,9 @@ export async function extractArticle() {
                     if (!src || src.startsWith('data:') || src.startsWith('images/')) return;
                     // Accept relative URLs too (e.g. arxiv uses relative img srcs)
                     try {
-                        const abs = new URL(src, window.location.href).href;
+                        // Use document.baseURI (not window.location.href) — pages with
+                        // a <base> tag (e.g. arxiv) resolve relative URLs differently.
+                        const abs = new URL(src, document.baseURI).href;
                         const rawExt = (abs.match(/\.(jpe?g|png|gif|webp)(\?|$)/i)?.[1] || 'jpg').toLowerCase();
                         const ext = rawExt === 'jpeg' ? 'jpg' : rawExt === 'webp' ? 'jpg' : rawExt;
                         const id = `img-${idx++}`;
@@ -281,7 +283,8 @@ export async function extractArticle() {
                         wordCount,
                         body,
                         rawText: textContent,
-                        sourceUrl: window.location.href
+                        sourceUrl: window.location.href,
+                        baseUri: document.baseURI
                     },
                     media,
                     externalSrcs
