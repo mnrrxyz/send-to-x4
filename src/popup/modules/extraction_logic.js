@@ -220,16 +220,16 @@ export async function extractArticle() {
                     })
                 ));
 
-                // external <img> → assign relative path, collect src for later fetch
+                // external <img> → assign relative path, collect src for later fetch.
+                // Skip dimension check here — URLs with special chars break querySelector,
+                // making naturalWidth=0. Readability already filtered irrelevant images;
+                // real size filtering happens at fetch time (500KB limit).
                 const externalSrcs = [];
                 Array.from(clone.querySelectorAll('img[src]')).forEach(img => {
                     if (externalSrcs.length >= MAX_EXT) return;
                     const src = img.getAttribute('src');
                     if (!src || src.startsWith('data:') || src.startsWith('images/')) return;
-                    const liveImg = document.querySelector(`img[src="${src}"]`);
-                    const w = liveImg?.naturalWidth || liveImg?.width || 0;
-                    const h = liveImg?.naturalHeight || liveImg?.height || 0;
-                    if (w < MIN_DIM || h < MIN_DIM) return;
+                    if (!src.startsWith('http://') && !src.startsWith('https://') && !src.startsWith('//')) return;
                     try {
                         const abs = new URL(src, window.location.href).href;
                         const rawExt = (abs.match(/\.(jpe?g|png|gif|webp)(\?|$)/i)?.[1] || 'jpg').toLowerCase();

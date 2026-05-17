@@ -86,7 +86,7 @@ export class ArticleManager {
             if (b64) images.push({ id: m.id, data: b64, mimeType: m.mimeType, ext: m.ext });
         }
 
-        const MAX_BLOB = 500 * 1024;
+        const MAX_BLOB = 1500 * 1024; // 1.5MB — covers most article images
         const TIMEOUT = 5000;
 
         for (const { id, src, ext } of externalSrcs) {
