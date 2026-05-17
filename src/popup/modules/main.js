@@ -25,6 +25,8 @@ class PopupController {
         this.ui.setupListeners({
             onSend: () => this.handleSend(),
             onDownload: () => this.handleDownload(),
+            onQueue: () => this.handleSaveToQueue(),
+            onSyncQueue: () => this.handleSyncQueue(),
             onSettingsChange: (e) => this.handleSettingsChange(e),
             onIpChange: (e) => this.handleIpChange(e),
             onConnect: () => this.handleConnect(),
@@ -52,7 +54,8 @@ class PopupController {
         // Run checks in parallel
         await Promise.all([
             this.checkArticle(),
-            this.checkDevice()
+            this.checkDevice(),
+            this.loadQueue()
         ]);
     }
 
@@ -275,6 +278,70 @@ class PopupController {
         } catch (error) {
             console.error('[Popup Controller] Download error:', error);
             this.ui.setDownloadButtonState('error', error.message);
+        }
+    }
+
+    async loadQueue() {
+        try {
+            const response = await browserAPI.runtime.sendMessage({ type: 'X4_GET_QUEUE' });
+            if (response?.success) {
+                this.ui.showQueue(response.items, (id, li) => this.handleRemoveFromQueue(id, li));
+            }
+        } catch (e) { /* ignore */ }
+    }
+
+    async handleSaveToQueue() {
+        const article = this.articleManager.articleData;
+        if (!article) return;
+
+        this.ui.setQueueButtonState('saving');
+        try {
+            const response = await browserAPI.runtime.sendMessage({
+                type: 'X4_SAVE_TO_QUEUE',
+                payload: { kind: 'generic_article', ...article }
+            });
+            if (response?.success) {
+                this.ui.setQueueButtonState('success');
+                await this.loadQueue();
+            } else {
+                this.ui.setQueueButtonState('error');
+            }
+        } catch (e) {
+            this.ui.setQueueButtonState('error');
+        }
+    }
+
+    async handleRemoveFromQueue(id, li) {
+        li.style.opacity = '0.4';
+        try {
+            await browserAPI.runtime.sendMessage({ type: 'X4_REMOVE_FROM_QUEUE', payload: { id } });
+            await this.loadQueue();
+        } catch (e) {
+            li.style.opacity = '';
+        }
+    }
+
+    async handleSyncQueue() {
+        this.ui.setSyncQueueButtonState('syncing');
+        try {
+            const response = await browserAPI.runtime.sendMessage({ type: 'X4_SYNC_QUEUE' });
+            if (response?.success) {
+                if (response.skipped) {
+                    this.ui.showQueueStatus('X4 not reachable. Connect to X4 WiFi first.', 'error');
+                } else {
+                    const msg = `Synced ${response.synced} article${response.synced !== 1 ? 's' : ''}` +
+                        (response.failed > 0 ? `, ${response.failed} failed` : '');
+                    this.ui.showQueueStatus(msg, response.failed > 0 ? 'error' : 'success');
+                    await this.loadQueue();
+                    if (response.synced > 0) setTimeout(() => this.checkDevice(), 1500);
+                }
+            } else {
+                this.ui.showQueueStatus(response?.error || 'Sync failed', 'error');
+            }
+        } catch (e) {
+            this.ui.showQueueStatus(e.message, 'error');
+        } finally {
+            this.ui.setSyncQueueButtonState('idle');
         }
     }
 }

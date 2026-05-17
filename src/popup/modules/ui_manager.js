@@ -20,6 +20,12 @@ export class UIManager {
             errorMessage: document.getElementById('error-message'),
             sendBtn: document.getElementById('send-btn'),
             downloadBtn: document.getElementById('download-btn'),
+            queueBtn: document.getElementById('queue-btn'),
+            syncQueueBtn: document.getElementById('sync-queue-btn'),
+            queueBadge: document.getElementById('queue-badge'),
+            queueListItems: document.getElementById('queue-list-items'),
+            queueEmpty: document.getElementById('queue-empty'),
+            queueStatus: document.getElementById('queue-status'),
             deviceLoading: document.getElementById('device-loading'),
             deviceConnected: document.getElementById('device-connected'),
             deviceDisconnected: document.getElementById('device-disconnected'),
@@ -41,6 +47,8 @@ export class UIManager {
     setupListeners(handlers) {
         if (handlers.onSend) this.elements.sendBtn.addEventListener('click', handlers.onSend);
         if (handlers.onDownload) this.elements.downloadBtn.addEventListener('click', handlers.onDownload);
+        if (handlers.onQueue) this.elements.queueBtn.addEventListener('click', handlers.onQueue);
+        if (handlers.onSyncQueue) this.elements.syncQueueBtn.addEventListener('click', handlers.onSyncQueue);
         if (handlers.onSettingsChange) this.elements.firmwareTypeSelect.addEventListener('change', handlers.onSettingsChange);
         if (handlers.onIpChange) this.elements.deviceIpInput.addEventListener('change', handlers.onIpChange);
         if (handlers.onConnect) this.elements.connectBtn.addEventListener('click', handlers.onConnect);
@@ -269,5 +277,79 @@ export class UIManager {
                 textSpan.textContent = 'Download';
                 break;
         }
+    }
+
+    setQueueButtonState(state) {
+        const btn = this.elements.queueBtn;
+        const iconSpan = btn.querySelector('.btn-icon');
+        const textSpan = btn.querySelector('.btn-text');
+        switch (state) {
+            case 'saving':
+                btn.disabled = true;
+                iconSpan.innerHTML = '<div class="btn-spinner"></div>';
+                textSpan.textContent = '...';
+                break;
+            case 'success':
+                btn.disabled = false;
+                iconSpan.textContent = '✅';
+                textSpan.textContent = 'Queued!';
+                setTimeout(() => this.setQueueButtonState('idle'), 2000);
+                break;
+            case 'error':
+                btn.disabled = false;
+                iconSpan.textContent = '❌';
+                textSpan.textContent = 'Failed';
+                setTimeout(() => this.setQueueButtonState('idle'), 2000);
+                break;
+            default:
+                btn.disabled = false;
+                iconSpan.textContent = '+';
+                textSpan.textContent = 'Queue';
+        }
+    }
+
+    setSyncQueueButtonState(state) {
+        const btn = this.elements.syncQueueBtn;
+        btn.disabled = state === 'syncing';
+        btn.textContent = state === 'syncing' ? 'Syncing...' : 'Sync Now';
+    }
+
+    showQueue(items, onRemove) {
+        const pending = items.filter(i => i.status === 'pending' || i.status === 'failed');
+        const badge = this.elements.queueBadge;
+        const list = this.elements.queueListItems;
+        const empty = this.elements.queueEmpty;
+
+        if (pending.length === 0) {
+            badge.classList.add('hidden');
+            empty.classList.remove('hidden');
+            list.querySelectorAll('.queue-item').forEach(el => el.remove());
+            return;
+        }
+
+        badge.textContent = pending.length;
+        badge.classList.remove('hidden');
+        empty.classList.add('hidden');
+        list.querySelectorAll('.queue-item').forEach(el => el.remove());
+
+        pending.forEach(item => {
+            const li = document.createElement('li');
+            li.className = `queue-item${item.status === 'failed' ? ' failed' : ''}`;
+            li.dataset.id = item.id;
+            li.innerHTML = `
+                <span class="queue-item-title" title="${item.title}">${item.title}</span>
+                <span class="queue-item-status">${item.status === 'failed' ? 'failed' : 'pending'}</span>
+                <button class="queue-item-remove" title="Remove">&#x2715;</button>`;
+            li.querySelector('.queue-item-remove').addEventListener('click', () => onRemove(item.id, li));
+            list.appendChild(li);
+        });
+    }
+
+    showQueueStatus(message, type = '') {
+        const el = this.elements.queueStatus;
+        el.textContent = message;
+        el.className = `queue-status${type ? ' ' + type : ''}`;
+        el.classList.remove('hidden');
+        setTimeout(() => el.classList.add('hidden'), 4000);
     }
 }

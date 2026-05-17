@@ -22,7 +22,9 @@ if (typeof importScripts === 'function') {
             '../epub/epub_builder.js',
             '../upload/x4_upload_tab.js',
             '../upload/crosspoint_upload.js',
-            '../utils/settings.js'
+            '../utils/settings.js',
+            '../queue/storage.js',
+            '../queue/sync.js'
         );
     } catch (e) {
         console.error('[X4 SW] importScripts failed:', e);
@@ -30,6 +32,10 @@ if (typeof importScripts === 'function') {
 }
 
 console.log('[X4 Service Worker] Initialized');
+
+// Setup read-later queue alarm (30s interval)
+QueueSync.setupAlarm();
+chrome.alarms.onAlarm.addListener(alarm => QueueSync.handleAlarm(alarm.name));
 
 // Message handler
 browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -56,10 +62,35 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'X4_FETCH') {
         handleFetch(message.payload)
             .then(result => sendResponse(result))
-            .catch(error => sendResponse({
-                success: false,
-                error: error.message
-            }));
+            .catch(error => sendResponse({ success: false, error: error.message }));
+        return true;
+    }
+
+    if (message.type === 'X4_SAVE_TO_QUEUE') {
+        QueueStorage.add(message.payload)
+            .then(item => sendResponse({ success: true, item }))
+            .catch(error => sendResponse({ success: false, error: error.message }));
+        return true;
+    }
+
+    if (message.type === 'X4_GET_QUEUE') {
+        QueueStorage.getAll()
+            .then(items => sendResponse({ success: true, items }))
+            .catch(error => sendResponse({ success: false, error: error.message }));
+        return true;
+    }
+
+    if (message.type === 'X4_REMOVE_FROM_QUEUE') {
+        QueueStorage.remove(message.payload.id)
+            .then(() => sendResponse({ success: true }))
+            .catch(error => sendResponse({ success: false, error: error.message }));
+        return true;
+    }
+
+    if (message.type === 'X4_SYNC_QUEUE') {
+        QueueSync.trySyncQueue()
+            .then(result => sendResponse({ success: true, ...result }))
+            .catch(error => sendResponse({ success: false, error: error.message }));
         return true;
     }
 });

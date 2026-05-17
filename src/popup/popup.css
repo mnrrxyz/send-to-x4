@@ -481,6 +481,113 @@ body {
     margin-left: 28px;
 }
 
+/* Queue button (tertiary) */
+.send-btn.tertiary {
+    background: #27272a;
+    border: 1px solid #3f3f46;
+}
+.send-btn.tertiary:hover:not(:disabled) {
+    background: #3f3f46;
+    box-shadow: none;
+}
+
+/* Queue Section */
+.queue-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    background: #7c3aed;
+    color: white;
+    border-radius: 9px;
+    font-size: 10px;
+    font-weight: 600;
+    margin-left: 4px;
+}
+
+.queue-sync-btn {
+    margin-left: auto;
+    padding: 3px 10px;
+    background: #27272a;
+    border: 1px solid #3f3f46;
+    border-radius: 5px;
+    color: #a1a1aa;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.queue-sync-btn:hover:not(:disabled) { background: #3f3f46; color: #e4e4e7; }
+.queue-sync-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.queue-status {
+    font-size: 11px;
+    color: #a1a1aa;
+    margin-bottom: 8px;
+    padding: 6px 8px;
+    background: #27272a;
+    border-radius: 6px;
+}
+.queue-status.success { color: #34d399; }
+.queue-status.error   { color: #f87171; }
+
+.queue-items {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.queue-empty {
+    font-size: 12px;
+    color: #52525b;
+    font-style: italic;
+}
+
+.queue-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: #27272a;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #d4d4d8;
+}
+.queue-item.failed { border-left: 2px solid #dc2626; }
+
+.queue-item-title {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.queue-item-status {
+    font-size: 10px;
+    color: #71717a;
+    flex-shrink: 0;
+}
+.queue-item.failed .queue-item-status { color: #f87171; }
+
+.queue-item-remove {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: #52525b;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.15s ease;
+}
+.queue-item-remove:hover { background: #dc2626; color: white; }
+
 /* Footer */
 .popup-footer {
     padding: 12px 16px;

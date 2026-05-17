@@ -39,6 +39,10 @@
             <span class="btn-icon">📥</span>
             <span class="btn-text">Download</span>
           </button>
+          <button id="queue-btn" class="send-btn tertiary">
+            <span class="btn-icon">+</span>
+            <span class="btn-text">Queue</span>
+          </button>
         </div>
       </div>
 
@@ -52,6 +56,23 @@
         <div class="error-icon">⚠️</div>
         <p id="error-message">Error message here</p>
       </div>
+    </section>
+
+    <!-- Divider -->
+    <div class="divider"></div>
+
+    <!-- Queue Section -->
+    <section id="queue-section" class="section">
+      <div class="section-header">
+        <span class="section-icon">&#x23F3;</span>
+        <span class="section-title">Queue</span>
+        <span id="queue-badge" class="queue-badge hidden">0</span>
+        <button id="sync-queue-btn" class="queue-sync-btn">Sync Now</button>
+      </div>
+      <div id="queue-status" class="queue-status hidden"></div>
+      <ul id="queue-list-items" class="queue-items">
+        <li id="queue-empty" class="queue-empty">No articles queued</li>
+      </ul>
     </section>
 
     <!-- Divider -->
@@ -133,7 +154,7 @@
 
     <!-- Footer -->
     <footer class="popup-footer">
-      <a href="https://github.com/Xatpy/send-to-x4" target="_blank" class="footer-link">v1.1.1</a>
+      <a href="https://github.com/mnrrxyz/send-to-x4" target="_blank" class="footer-link">v1.2.0</a>
     </footer>
   </div>
 
