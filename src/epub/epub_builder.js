@@ -47,7 +47,10 @@ const EpubBuilder = {
         };
 
         // Decode and add images as real files in the ZIP
-        const images = article.images || [];
+        const ALLOWED_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif']);
+        const images = (article.images || []).filter(img =>
+            img.id && /^[a-z0-9_-]+$/i.test(img.id) && ALLOWED_EXTS.has(img.ext)
+        );
         for (const img of images) {
             try {
                 const binary = atob(img.data);

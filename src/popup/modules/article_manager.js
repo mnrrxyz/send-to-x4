@@ -95,8 +95,6 @@ export class ArticleManager {
                 const absolutized = new URL(relative, sourceUrl).href;
                 article.body = article.body.split(absolutized).join(relative);
             } catch (e) {}
-            // Also catch any leftover relative reference (edge case)
-            article.body = article.body.split(`"${relative}"`).join(`"${relative}"`);
         };
 
         // Embedded (canvas → JPEG, SVG → PNG): already have base64 data
@@ -107,33 +105,30 @@ export class ArticleManager {
             fixBodySrc(m.id, m.ext);
         }
 
-        // External images: fetch then fix body reference
+        // External images: fetch in parallel then patch body sequentially.
+        // Parallel fetch cuts worst-case wait from (N × timeout) to (1 × timeout).
         const MAX_BLOB = 1500 * 1024;
         const TIMEOUT = 5000;
 
-        for (const { id, src, ext } of externalSrcs) {
+        const fetchImage = async ({ id, src, ext }) => {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), TIMEOUT);
             try {
-                const controller = new AbortController();
-                const timer = setTimeout(() => controller.abort(), TIMEOUT);
                 const res = await fetch(src, { signal: controller.signal });
                 clearTimeout(timer);
-                if (!res.ok) continue;
+                if (!res.ok) return null;
                 let blob = await res.blob();
-                if (blob.size > MAX_BLOB) continue;
+                if (blob.size > MAX_BLOB) return null;
 
-                // Derive extension from actual content type, not the URL.
-                // CDNs often serve JPEG under non-.jpg URLs.
                 const mimeType = blob.type || 'image/jpeg';
                 const actualExt = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif' }[mimeType] || 'jpg';
 
-                // Convert WebP to JPEG — CrossPoint doesn't support WebP natively.
+                // Convert WebP → JPEG (CrossPoint doesn't support WebP).
                 if (mimeType === 'image/webp') {
-                    try {
-                        const bitmap = await createImageBitmap(blob);
-                        const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-                        canvas.getContext('2d').drawImage(bitmap, 0, 0);
-                        blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
-                    } catch (e) { continue; }
+                    const bitmap = await createImageBitmap(blob);
+                    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+                    canvas.getContext('2d').drawImage(bitmap, 0, 0);
+                    blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
                 }
 
                 const dataUrl = await new Promise(resolve => {
@@ -142,14 +137,26 @@ export class ArticleManager {
                     reader.onerror = () => resolve(null);
                     reader.readAsDataURL(blob);
                 });
-                if (!dataUrl) continue;
-                images.push({ id, data: dataUrl.split(',')[1], mimeType: blob.type || 'image/jpeg', ext: actualExt });
-                fixBodySrc(id, ext); // fix the absolutized placeholder back to relative
-                // if the actual extension differs from the URL-based one, rename the reference too
-                if (actualExt !== ext) {
-                    article.body = article.body.split(`images/${id}.${ext}`).join(`images/${id}.${actualExt}`);
-                }
-            } catch (e) { /* skip — timeout, CORS, or network */ }
+                if (!dataUrl) return null;
+
+                return { id, ext, actualExt, data: dataUrl.split(',')[1], mimeType: blob.type || 'image/jpeg' };
+            } catch (e) {
+                clearTimeout(timer);
+                return null;
+            }
+        };
+
+        const fetched = await Promise.allSettled(externalSrcs.map(fetchImage));
+
+        // Patch body sequentially to avoid concurrent string mutation.
+        for (const result of fetched) {
+            if (result.status !== 'fulfilled' || !result.value) continue;
+            const { id, ext, actualExt, data, mimeType } = result.value;
+            images.push({ id, data, mimeType, ext: actualExt });
+            fixBodySrc(id, ext);
+            if (actualExt !== ext) {
+                article.body = article.body.split(`images/${id}.${ext}`).join(`images/${id}.${actualExt}`);
+            }
         }
 
         return images;

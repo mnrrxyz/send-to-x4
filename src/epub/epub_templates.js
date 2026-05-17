@@ -54,7 +54,7 @@ ${coverMeta}
     <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
     <item id="content" href="content.xhtml" media-type="application/xhtml+xml"/>
 ${coverItem}
-${images.map(img => `    <item id="${img.id}" href="images/${img.id}.${img.ext}" media-type="${img.mimeType}"/>`).join('\n')}
+${images.map(img => `    <item id="${this.escapeXml(img.id)}" href="images/${this.escapeXml(img.id)}.${this.escapeXml(img.ext)}" media-type="${this.escapeXml(img.mimeType)}"/>`).join('\n')}
   </manifest>
   <spine toc="ncx">
     <itemref idref="content"/>

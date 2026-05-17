@@ -184,14 +184,16 @@ export async function extractArticle() {
                     } catch (e) { cc.remove(); }
                 });
 
-                // inline SVG → PNG (rasterize via canvas)
+                // inline SVG → PNG (rasterize via canvas, 5s timeout per SVG)
                 const liveSVGs = Array.from(document.querySelectorAll('svg'));
-                await Promise.all(Array.from(clone.querySelectorAll('svg')).map((cs, i) =>
-                    new Promise(resolve => {
+                await Promise.all(Array.from(clone.querySelectorAll('svg')).map((cs, i) => {
+                    const render = new Promise(resolve => {
                         try {
                             const ls = liveSVGs[i];
-                            const w = ls?.viewBox?.baseVal?.width || ls?.width?.baseVal?.value || 0;
-                            const h = ls?.viewBox?.baseVal?.height || ls?.height?.baseVal?.value || 0;
+                            const w = ls?.viewBox?.baseVal?.width || ls?.width?.baseVal?.value ||
+                                      parseInt(ls?.getAttribute('width')) || 0;
+                            const h = ls?.viewBox?.baseVal?.height || ls?.height?.baseVal?.value ||
+                                      parseInt(ls?.getAttribute('height')) || 0;
                             if (w < MIN_DIM || h < MIN_DIM) { cs.remove(); return resolve(); }
                             const svgStr = new XMLSerializer().serializeToString(ls);
                             const blob = new Blob([svgStr], { type: 'image/svg+xml' });
@@ -217,22 +219,39 @@ export async function extractArticle() {
                             image.onerror = () => { URL.revokeObjectURL(url); cs.remove(); resolve(); };
                             image.src = url;
                         } catch (e) { cs.remove(); resolve(); }
-                    })
-                ));
+                    });
+                    const timeout = new Promise(resolve => setTimeout(() => { cs.remove(); resolve(); }, 5000));
+                    return Promise.race([render, timeout]);
+                }));
 
                 // external <img> → assign relative path, collect src for later fetch.
                 // Skip dimension check here — URLs with special chars break querySelector,
                 // making naturalWidth=0. Readability already filtered irrelevant images;
                 // real size filtering happens at fetch time (500KB limit).
                 const externalSrcs = [];
-                Array.from(clone.querySelectorAll('img[src]')).forEach(img => {
+                // Lazy-loading attribute names, in priority order.
+                const lazySrcAttrs = ['data-src', 'data-lazy-src', 'data-lazy', 'data-original',
+                                      'data-srcset', 'data-hi-res-src'];
+
+                Array.from(clone.querySelectorAll('img')).forEach(img => {
                     if (externalSrcs.length >= MAX_EXT) return;
-                    const src = img.getAttribute('src');
+
+                    // Prefer data-src (lazy loading) over src (may be a placeholder).
+                    let src = null;
+                    for (const attr of lazySrcAttrs) {
+                        const val = img.getAttribute(attr);
+                        if (val && !val.startsWith('data:')) { src = val; break; }
+                    }
+                    // Fall back to src if no lazy attribute found.
+                    if (!src) src = img.getAttribute('src');
                     if (!src || src.startsWith('data:') || src.startsWith('images/')) return;
-                    // Accept relative URLs too (e.g. arxiv uses relative img srcs)
+
+                    // If srcset-based lazy attr, take only the first URL.
+                    if (src.includes(',') && src.includes(' ')) {
+                        src = src.trim().split(/\s+/)[0];
+                    }
+
                     try {
-                        // Use document.baseURI (not window.location.href) — pages with
-                        // a <base> tag (e.g. arxiv) resolve relative URLs differently.
                         const abs = new URL(src, document.baseURI).href;
                         const rawExt = (abs.match(/\.(jpe?g|png|gif|webp)(\?|$)/i)?.[1] || 'jpg').toLowerCase();
                         const ext = rawExt === 'jpeg' ? 'jpg' : rawExt === 'webp' ? 'jpg' : rawExt;
