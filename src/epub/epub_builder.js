@@ -20,23 +20,17 @@ const EpubBuilder = {
         const uuid = this.generateUuid();
 
         let coverMediaType = null;
-        /*
-        // Cover disabled for X4 compatibility
-        if (article.coverUrl) {
+        if (article.cover) {
             try {
-                console.log('[EpubBuilder] Fetching cover:', article.coverUrl);
-                const response = await fetch(article.coverUrl);
-                if (response.ok) {
-                    const blob = await response.blob();
-                    coverMediaType = blob.type || 'image/jpeg'; // Default to jpeg if unknown
-                    // Add to zip
-                    zip.file('OEBPS/images/cover.jpg', blob);
-                }
+                const binary = atob(article.cover);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                zip.file('OEBPS/images/cover.jpg', bytes);
+                coverMediaType = 'image/jpeg';
             } catch (e) {
-                console.warn('[EpubBuilder] Failed to fetch cover:', e);
+                console.warn('[EpubBuilder] Failed to add cover:', e.message);
             }
         }
-        */
 
         const metadata = {
             title: article.title,

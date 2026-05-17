@@ -62,6 +62,7 @@ export class ArticleManager {
                     article
                 );
                 if (images.length > 0) article.images = images;
+                article.cover = await this.generateCover(article);
                 this.articleData = article;
                 return article;
             } else {
@@ -77,6 +78,106 @@ export class ArticleManager {
 
     getArticleData() {
         return this.articleData;
+    }
+
+    async generateCover(article) {
+        const W = 480, H = 800;
+        try {
+            const canvas = new OffscreenCanvas(W, H);
+            const ctx = canvas.getContext('2d');
+
+            // Background
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, W, H);
+
+            // Top bar
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, W, 12);
+
+            const margin = 52;
+            const maxWidth = W - margin * 2;
+            ctx.fillStyle = '#000000';
+            ctx.textBaseline = 'top';
+
+            // Adaptive font size: shrink for long titles
+            const title = article.title || 'Untitled';
+            let fontSize = 38;
+            if (title.length > 60)  fontSize = 30;
+            if (title.length > 100) fontSize = 24;
+            if (title.length > 160) fontSize = 20;
+
+            ctx.font = `bold ${fontSize}px sans-serif`;
+            const lineHeight = Math.round(fontSize * 1.35);
+
+            // Word-wrap title
+            const words = title.split(' ');
+            const lines = [];
+            let current = '';
+            for (const word of words) {
+                const test = current ? `${current} ${word}` : word;
+                if (ctx.measureText(test).width > maxWidth && current) {
+                    lines.push(current);
+                    current = word;
+                } else {
+                    current = test;
+                }
+            }
+            if (current) lines.push(current);
+
+            // Center title block in upper 58% of canvas
+            const titleBlockH = lines.length * lineHeight;
+            let titleY = Math.max(60, (H * 0.58 - titleBlockH) / 2);
+            for (const line of lines) {
+                const lw = ctx.measureText(line).width;
+                ctx.fillText(line, (W - lw) / 2, titleY);
+                titleY += lineHeight;
+            }
+
+            // Divider
+            const divY = Math.round(H * 0.63);
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(margin, divY, maxWidth, 2);
+
+            // Author
+            const author = article.author || '';
+            if (author) {
+                ctx.font = `19px sans-serif`;
+                ctx.fillStyle = '#222222';
+                ctx.textBaseline = 'top';
+                const aw = ctx.measureText(author).width;
+                ctx.fillText(author, (W - Math.min(aw, maxWidth)) / 2, divY + 22);
+            }
+
+            // Source · date
+            const source = (() => {
+                try { return new URL(article.sourceUrl || '').hostname.replace(/^www\./, ''); } catch { return ''; }
+            })();
+            const date = article.date || '';
+            const meta = [source, date].filter(Boolean).join(' · ');
+            if (meta) {
+                ctx.font = `16px sans-serif`;
+                ctx.fillStyle = '#666666';
+                ctx.textBaseline = 'top';
+                const mw = ctx.measureText(meta).width;
+                ctx.fillText(meta, (W - Math.min(mw, maxWidth)) / 2, divY + (author ? 54 : 22));
+            }
+
+            // Bottom bar
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, H - 12, W, 12);
+
+            const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.92 });
+            const dataUrl = await new Promise(resolve => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => resolve(null);
+                reader.readAsDataURL(blob);
+            });
+            return dataUrl ? dataUrl.split(',')[1] : null;
+        } catch (e) {
+            console.warn('[ArticleManager] Cover generation failed:', e.message);
+            return null;
+        }
     }
 
     async buildImageArray(embedded, externalSrcs, article) {
