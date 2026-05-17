@@ -58,7 +58,8 @@ export class ArticleManager {
                 const article = result.article;
                 const images = await this.buildImageArray(
                     result.media || [],
-                    result.externalSrcs || []
+                    result.externalSrcs || [],
+                    article
                 );
                 if (images.length > 0) article.images = images;
                 this.articleData = article;
@@ -78,15 +79,34 @@ export class ArticleManager {
         return this.articleData;
     }
 
-    async buildImageArray(embedded, externalSrcs) {
+    async buildImageArray(embedded, externalSrcs, article) {
         const images = [];
+        const sourceUrl = article.sourceUrl || '';
 
+        // Readability absolutizes relative URLs against the page base URL.
+        // Given we replaced img srcs with `images/id.ext` in the clone,
+        // Readability turns them into `https://base/path/to/images/id.ext`.
+        // This helper finds that absolutized version and restores the relative path.
+        const fixBodySrc = (id, ext) => {
+            const relative = `images/${id}.${ext}`;
+            try {
+                const absolutized = new URL(relative, sourceUrl).href;
+                article.body = article.body.split(absolutized).join(relative);
+            } catch (e) {}
+            // Also catch any leftover relative reference (edge case)
+            article.body = article.body.split(`"${relative}"`).join(`"${relative}"`);
+        };
+
+        // Embedded (canvas → JPEG, SVG → PNG): already have base64 data
         for (const m of embedded) {
             const b64 = m.dataUrl.split(',')[1];
-            if (b64) images.push({ id: m.id, data: b64, mimeType: m.mimeType, ext: m.ext });
+            if (!b64) continue;
+            images.push({ id: m.id, data: b64, mimeType: m.mimeType, ext: m.ext });
+            fixBodySrc(m.id, m.ext);
         }
 
-        const MAX_BLOB = 1500 * 1024; // 1.5MB — covers most article images
+        // External images: fetch then fix body reference
+        const MAX_BLOB = 1500 * 1024;
         const TIMEOUT = 5000;
 
         for (const { id, src, ext } of externalSrcs) {
@@ -107,6 +127,7 @@ export class ArticleManager {
                 });
                 if (!dataUrl) continue;
                 images.push({ id, data: dataUrl.split(',')[1], mimeType, ext });
+                fixBodySrc(id, ext);
             } catch (e) { /* skip — timeout, CORS, or network */ }
         }
 
