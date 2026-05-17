@@ -229,7 +229,7 @@ export async function extractArticle() {
                     if (externalSrcs.length >= MAX_EXT) return;
                     const src = img.getAttribute('src');
                     if (!src || src.startsWith('data:') || src.startsWith('images/')) return;
-                    if (!src.startsWith('http://') && !src.startsWith('https://') && !src.startsWith('//')) return;
+                    // Accept relative URLs too (e.g. arxiv uses relative img srcs)
                     try {
                         const abs = new URL(src, window.location.href).href;
                         const rawExt = (abs.match(/\.(jpe?g|png|gif|webp)(\?|$)/i)?.[1] || 'jpg').toLowerCase();

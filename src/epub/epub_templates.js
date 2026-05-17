@@ -203,6 +203,22 @@ ${images.map(img => `    <item id="${img.id}" href="images/${img.id}.${img.ext}"
     result = result.replace(/\s+fetchpriority="[^"]*"/gi, '');
     result = result.replace(/\s+data-[\w-]+(?:="[^"]*"|='[^']*')?/gi, '');
 
+    // Replace HTML named entities not defined in XHTML without the DTD.
+    // &amp; &lt; &gt; &quot; &apos; are predefined XML entities — keep them.
+    const namedEntities = {
+      '&nbsp;': '&#160;', '&mdash;': '&#8212;', '&ndash;': '&#8211;',
+      '&hellip;': '&#8230;', '&ldquo;': '&#8220;', '&rdquo;': '&#8221;',
+      '&lsquo;': '&#8216;', '&rsquo;': '&#8217;', '&bull;': '&#8226;',
+      '&laquo;': '&#171;',  '&raquo;': '&#187;',  '&copy;': '&#169;',
+      '&reg;': '&#174;',    '&trade;': '&#8482;',  '&euro;': '&#8364;',
+      '&deg;': '&#176;',    '&plusmn;': '&#177;',  '&times;': '&#215;',
+      '&divide;': '&#247;', '&frac12;': '&#189;',  '&frac14;': '&#188;',
+      '&frac34;': '&#190;', '&acute;': '&#180;',   '&micro;': '&#181;',
+    };
+    for (const [named, numeric] of Object.entries(namedEntities)) {
+      result = result.split(named).join(numeric);
+    }
+
     // Self-close void elements (required by XHTML)
     const voidElements = [
       'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
