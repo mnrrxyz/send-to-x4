@@ -116,9 +116,24 @@ export class ArticleManager {
                 const res = await fetch(src, { signal: controller.signal });
                 clearTimeout(timer);
                 if (!res.ok) continue;
-                const blob = await res.blob();
+                let blob = await res.blob();
                 if (blob.size > MAX_BLOB) continue;
-                const mimeType = blob.type || (ext === 'png' ? 'image/png' : 'image/jpeg');
+
+                // Derive extension from actual content type, not the URL.
+                // CDNs often serve JPEG under non-.jpg URLs.
+                const mimeType = blob.type || 'image/jpeg';
+                const actualExt = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif' }[mimeType] || 'jpg';
+
+                // Convert WebP to JPEG — CrossPoint doesn't support WebP natively.
+                if (mimeType === 'image/webp') {
+                    try {
+                        const bitmap = await createImageBitmap(blob);
+                        const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+                        canvas.getContext('2d').drawImage(bitmap, 0, 0);
+                        blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
+                    } catch (e) { continue; }
+                }
+
                 const dataUrl = await new Promise(resolve => {
                     const reader = new FileReader();
                     reader.onload = () => resolve(reader.result);
@@ -126,8 +141,9 @@ export class ArticleManager {
                     reader.readAsDataURL(blob);
                 });
                 if (!dataUrl) continue;
-                images.push({ id, data: dataUrl.split(',')[1], mimeType, ext });
-                fixBodySrc(id, ext);
+                images.push({ id, data: dataUrl.split(',')[1], mimeType: blob.type || 'image/jpeg', ext: actualExt });
+                fixBodySrc(id, ext);       // fix the placeholder path Readability absolutized
+                if (actualExt !== ext) fixBodySrc(id, actualExt); // also fix if ext changed
             } catch (e) { /* skip — timeout, CORS, or network */ }
         }
 
