@@ -81,7 +81,7 @@ export class ArticleManager {
     }
 
     async generateCover(article) {
-        const W = 480, H = 800;
+        const W = 240, H = 400;
         try {
             const canvas = new OffscreenCanvas(W, H);
             const ctx = canvas.getContext('2d');
@@ -92,19 +92,19 @@ export class ArticleManager {
 
             // Top bar
             ctx.fillStyle = '#000000';
-            ctx.fillRect(0, 0, W, 12);
+            ctx.fillRect(0, 0, W, 6);
 
-            const margin = 52;
+            const margin = 26;
             const maxWidth = W - margin * 2;
             ctx.fillStyle = '#000000';
             ctx.textBaseline = 'top';
 
             // Adaptive font size: shrink for long titles
             const title = article.title || 'Untitled';
-            let fontSize = 38;
-            if (title.length > 60)  fontSize = 30;
-            if (title.length > 100) fontSize = 24;
-            if (title.length > 160) fontSize = 20;
+            let fontSize = 19;
+            if (title.length > 60)  fontSize = 15;
+            if (title.length > 100) fontSize = 12;
+            if (title.length > 160) fontSize = 10;
 
             ctx.font = `bold ${fontSize}px sans-serif`;
             const lineHeight = Math.round(fontSize * 1.35);
@@ -126,7 +126,7 @@ export class ArticleManager {
 
             // Center title block in upper 58% of canvas
             const titleBlockH = lines.length * lineHeight;
-            let titleY = Math.max(60, (H * 0.58 - titleBlockH) / 2);
+            let titleY = Math.max(30, (H * 0.58 - titleBlockH) / 2);
             for (const line of lines) {
                 const lw = ctx.measureText(line).width;
                 ctx.fillText(line, (W - lw) / 2, titleY);
@@ -136,16 +136,16 @@ export class ArticleManager {
             // Divider
             const divY = Math.round(H * 0.63);
             ctx.fillStyle = '#000000';
-            ctx.fillRect(margin, divY, maxWidth, 2);
+            ctx.fillRect(margin, divY, maxWidth, 1);
 
             // Author
             const author = article.author || '';
             if (author) {
-                ctx.font = `19px sans-serif`;
+                ctx.font = `10px sans-serif`;
                 ctx.fillStyle = '#222222';
                 ctx.textBaseline = 'top';
                 const aw = ctx.measureText(author).width;
-                ctx.fillText(author, (W - Math.min(aw, maxWidth)) / 2, divY + 22);
+                ctx.fillText(author, (W - Math.min(aw, maxWidth)) / 2, divY + 11);
             }
 
             // Source · date
@@ -155,18 +155,18 @@ export class ArticleManager {
             const date = article.date || '';
             const meta = [source, date].filter(Boolean).join(' · ');
             if (meta) {
-                ctx.font = `16px sans-serif`;
+                ctx.font = `9px sans-serif`;
                 ctx.fillStyle = '#666666';
                 ctx.textBaseline = 'top';
                 const mw = ctx.measureText(meta).width;
-                ctx.fillText(meta, (W - Math.min(mw, maxWidth)) / 2, divY + (author ? 54 : 22));
+                ctx.fillText(meta, (W - Math.min(mw, maxWidth)) / 2, divY + (author ? 27 : 11));
             }
 
             // Bottom bar
             ctx.fillStyle = '#000000';
-            ctx.fillRect(0, H - 12, W, 12);
+            ctx.fillRect(0, H - 6, W, 6);
 
-            const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.92 });
+            const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
             const dataUrl = await new Promise(resolve => {
                 const reader = new FileReader();
                 reader.onload = () => resolve(reader.result);
