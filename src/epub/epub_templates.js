@@ -110,7 +110,6 @@ ${coverItem}
     const xhtmlBody = this.htmlToXhtml(body);
 
     return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
 <head>
   <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8"/>
@@ -181,21 +180,31 @@ ${coverItem}
   htmlToXhtml(html) {
     if (!html) return '';
 
-    // List of void/self-closing elements in HTML that must be self-closed in XHTML
+    let result = html;
+
+    // Remove <source> elements (HTML5, inside <picture>, unknown to XHTML 1.1 parsers)
+    result = result.replace(/<source[^>]*\/?>/gi, '');
+
+    // Unwrap <picture> — keep inner <img>, discard the wrapper tags
+    result = result.replace(/<picture[^>]*>/gi, '').replace(/<\/picture>/gi, '');
+
+    // Strip attributes not in XHTML 1.1 that can confuse strict parsers
+    result = result.replace(/\s+srcset="[^"]*"/gi, '');
+    result = result.replace(/\s+sizes="[^"]*"/gi, '');
+    result = result.replace(/\s+loading="[^"]*"/gi, '');
+    result = result.replace(/\s+decoding="[^"]*"/gi, '');
+    result = result.replace(/\s+fetchpriority="[^"]*"/gi, '');
+    result = result.replace(/\s+data-[\w-]+(?:="[^"]*"|='[^']*')?/gi, '');
+
+    // Self-close void elements (required by XHTML)
     const voidElements = [
       'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
-      'link', 'meta', 'param', 'source', 'track', 'wbr'
+      'link', 'meta', 'param', 'track', 'wbr'
     ];
-
-    // Pattern to match void elements that are not already self-closed
-    // Matches: <tag ...> but not <tag ... /> or <tag .../>
     const pattern = new RegExp(
       `<(${voidElements.join('|')})([^>]*?)(?<!/)>`,
       'gi'
     );
-
-    // Replace with self-closing version
-    // Also ensures we don't double-close if the regex is too greedy, but (?<!/) handles the check.
-    return html.replace(pattern, '<$1$2 />');
+    return result.replace(pattern, '<$1$2 />');
   }
 };

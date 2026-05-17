@@ -300,48 +300,36 @@ async function downloadEpubFallback(arrayBuffer, filename) {
     try {
         console.log('[X4 SW] Triggering download fallback...');
 
-        // Detect if we're in Firefox (has 'browser' namespace) or Chrome
-        const isFirefox = typeof browser !== 'undefined' && typeof browser.runtime !== 'undefined';
-        console.log('[X4 SW] Browser detected:', isFirefox ? 'Firefox' : 'Chrome');
+        // Chrome 120+ defines a 'browser' global, breaking the old isFirefox check.
+        // Detect by capability instead of by browser name.
+        const canUseObjectURL = typeof URL.createObjectURL === 'function';
 
         let downloadUrl;
 
-        if (isFirefox) {
-            // Firefox: Use Blob URL (works in MV3 service workers)
-            console.log('[X4 SW] Using Blob URL for Firefox...');
+        if (canUseObjectURL) {
             const blob = new Blob([arrayBuffer], { type: 'application/epub+zip' });
             downloadUrl = URL.createObjectURL(blob);
-            console.log('[X4 SW] Blob URL created:', downloadUrl);
         } else {
-            // Chrome: Use data URL (works in service workers)
-            console.log('[X4 SW] Converting to data URL for Chrome...');
+            // Chrome MV3 service workers: build data URL via chunked String.fromCharCode
             const bytes = new Uint8Array(arrayBuffer);
+            const CHUNK = 8192;
             let binary = '';
-            for (let i = 0; i < bytes.length; i++) {
-                binary += String.fromCharCode(bytes[i]);
+            for (let i = 0; i < bytes.length; i += CHUNK) {
+                binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
             }
-            const base64 = btoa(binary);
-            downloadUrl = `data:application/epub+zip;base64,${base64}`;
-            console.log('[X4 SW] Data URL length:', downloadUrl.length);
+            downloadUrl = `data:application/epub+zip;base64,${btoa(binary)}`;
         }
 
-        // Trigger download
-        console.log('[X4 SW] Calling browserAPI.downloads.download...');
         const downloadId = await browserAPI.downloads.download({
             url: downloadUrl,
             filename: filename,
             saveAs: false
         });
 
-        console.log('[X4 SW] Download triggered successfully, ID:', downloadId);
+        console.log('[X4 SW] Download triggered, ID:', downloadId);
 
-        // Clean up Blob URL after download starts (Firefox only)
-        if (isFirefox) {
-            // Give the download a moment to start before revoking
-            setTimeout(() => {
-                URL.revokeObjectURL(downloadUrl);
-                console.log('[X4 SW] Blob URL revoked');
-            }, 1000);
+        if (canUseObjectURL) {
+            setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
         }
     } catch (error) {
         console.error('[X4 SW] Download failed:', error);

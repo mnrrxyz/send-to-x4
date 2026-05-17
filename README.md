@@ -1,5 +1,7 @@
 # Send to X4
 
+Fork of [Xatpy/send-to-x4](https://github.com/Xatpy/send-to-x4). Fixed Chrome 120+ download bug and XHTML compatibility with the X4 parser.
+
 A browser extension to send long-form articles from the web directly to your **Xteink X4** e-ink reader as clean EPUB files.
 
 > Status: **Stable (v1.1.1)** — Tested with Xteink X4
