@@ -55,8 +55,14 @@ export class ArticleManager {
             console.log('[Article Manager] Extraction result:', result);
 
             if (result && result.success) {
-                this.articleData = result.article;
-                return result.article;
+                const article = result.article;
+                const images = await this.buildImageArray(
+                    result.media || [],
+                    result.externalSrcs || []
+                );
+                if (images.length > 0) article.images = images;
+                this.articleData = article;
+                return article;
             } else {
                 console.log('[Article Manager] No article found:', result?.reason);
                 return null;
@@ -70,5 +76,40 @@ export class ArticleManager {
 
     getArticleData() {
         return this.articleData;
+    }
+
+    async buildImageArray(embedded, externalSrcs) {
+        const images = [];
+
+        for (const m of embedded) {
+            const b64 = m.dataUrl.split(',')[1];
+            if (b64) images.push({ id: m.id, data: b64, mimeType: m.mimeType, ext: m.ext });
+        }
+
+        const MAX_BLOB = 500 * 1024;
+        const TIMEOUT = 5000;
+
+        for (const { id, src, ext } of externalSrcs) {
+            try {
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), TIMEOUT);
+                const res = await fetch(src, { signal: controller.signal });
+                clearTimeout(timer);
+                if (!res.ok) continue;
+                const blob = await res.blob();
+                if (blob.size > MAX_BLOB) continue;
+                const mimeType = blob.type || (ext === 'png' ? 'image/png' : 'image/jpeg');
+                const dataUrl = await new Promise(resolve => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = () => resolve(null);
+                    reader.readAsDataURL(blob);
+                });
+                if (!dataUrl) continue;
+                images.push({ id, data: dataUrl.split(',')[1], mimeType, ext });
+            } catch (e) { /* skip — timeout, CORS, or network */ }
+        }
+
+        return images;
     }
 }

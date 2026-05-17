@@ -46,14 +46,27 @@ const EpubBuilder = {
             coverMediaType
         };
 
+        // Decode and add images as real files in the ZIP
+        const images = article.images || [];
+        for (const img of images) {
+            try {
+                const binary = atob(img.data);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                zip.file(`OEBPS/images/${img.id}.${img.ext}`, bytes);
+            } catch (e) {
+                console.warn('[EpubBuilder] Skipping image:', img.id, e.message);
+            }
+        }
+
         // Add mimetype file (must be first and uncompressed)
         zip.file('mimetype', EpubTemplates.mimetype, { compression: 'STORE' });
 
         // Add container.xml in META-INF
         zip.file('META-INF/container.xml', EpubTemplates.containerXml);
 
-        // Add content.opf
-        zip.file('OEBPS/content.opf', EpubTemplates.contentOpf(metadata));
+        // Add content.opf (includes image manifest items)
+        zip.file('OEBPS/content.opf', EpubTemplates.contentOpf(metadata, images));
 
         // Add toc.ncx
         zip.file('OEBPS/toc.ncx', EpubTemplates.tocNcx(metadata));

@@ -3,7 +3,7 @@
  * This function is stringified and injected into the page, so it must be self-contained.
  */
 // Note: This function is stringified, so no imports allowed!
-export function extractArticle() {
+export async function extractArticle() {
     try {
         console.log('[X4] Extracting article...');
         const hostname = window.location.hostname;
@@ -156,8 +156,93 @@ export function extractArticle() {
         let wordCount = 0;
 
         if (hasReadability) {
-            // Use Readability
             const docClone = document.cloneNode(true);
+
+            // Extract canvas, SVG and collect external img srcs before Readability.
+            // Replaces each element in the clone with a relative-path <img> reference.
+            const { media, externalSrcs } = await (async function extractMedia(clone) {
+                const MIN_DIM = 100;
+                const MAX_B64 = 500000 * 1.37;
+                const MAX_EXT = 15;
+                const embedded = [];
+                let idx = 0;
+
+                // canvas → JPEG
+                const liveCanvases = Array.from(document.querySelectorAll('canvas'));
+                Array.from(clone.querySelectorAll('canvas')).forEach((cc, i) => {
+                    try {
+                        const lc = liveCanvases[i];
+                        if (!lc || lc.width < MIN_DIM || lc.height < MIN_DIM) { cc.remove(); return; }
+                        const dataUrl = lc.toDataURL('image/jpeg', 0.85);
+                        if (dataUrl.length > MAX_B64) { cc.remove(); return; }
+                        const id = `img-${idx++}`;
+                        embedded.push({ id, dataUrl, mimeType: 'image/jpeg', ext: 'jpg' });
+                        const img = clone.createElement('img');
+                        img.setAttribute('src', `images/${id}.jpg`);
+                        img.setAttribute('alt', 'chart');
+                        cc.replaceWith(img);
+                    } catch (e) { cc.remove(); }
+                });
+
+                // inline SVG → PNG (rasterize via canvas)
+                const liveSVGs = Array.from(document.querySelectorAll('svg'));
+                await Promise.all(Array.from(clone.querySelectorAll('svg')).map((cs, i) =>
+                    new Promise(resolve => {
+                        try {
+                            const ls = liveSVGs[i];
+                            const w = ls?.viewBox?.baseVal?.width || ls?.width?.baseVal?.value || 0;
+                            const h = ls?.viewBox?.baseVal?.height || ls?.height?.baseVal?.value || 0;
+                            if (w < MIN_DIM || h < MIN_DIM) { cs.remove(); return resolve(); }
+                            const svgStr = new XMLSerializer().serializeToString(ls);
+                            const blob = new Blob([svgStr], { type: 'image/svg+xml' });
+                            const url = URL.createObjectURL(blob);
+                            const image = new Image();
+                            image.onload = () => {
+                                try {
+                                    const canvas = document.createElement('canvas');
+                                    canvas.width = w; canvas.height = h;
+                                    canvas.getContext('2d').drawImage(image, 0, 0);
+                                    URL.revokeObjectURL(url);
+                                    const dataUrl = canvas.toDataURL('image/png');
+                                    if (dataUrl.length > MAX_B64) { cs.remove(); return resolve(); }
+                                    const id = `img-${idx++}`;
+                                    embedded.push({ id, dataUrl, mimeType: 'image/png', ext: 'png' });
+                                    const img = clone.createElement('img');
+                                    img.setAttribute('src', `images/${id}.png`);
+                                    img.setAttribute('alt', 'chart');
+                                    cs.replaceWith(img);
+                                } catch (e) { cs.remove(); }
+                                resolve();
+                            };
+                            image.onerror = () => { URL.revokeObjectURL(url); cs.remove(); resolve(); };
+                            image.src = url;
+                        } catch (e) { cs.remove(); resolve(); }
+                    })
+                ));
+
+                // external <img> → assign relative path, collect src for later fetch
+                const externalSrcs = [];
+                Array.from(clone.querySelectorAll('img[src]')).forEach(img => {
+                    if (externalSrcs.length >= MAX_EXT) return;
+                    const src = img.getAttribute('src');
+                    if (!src || src.startsWith('data:') || src.startsWith('images/')) return;
+                    const liveImg = document.querySelector(`img[src="${src}"]`);
+                    const w = liveImg?.naturalWidth || liveImg?.width || 0;
+                    const h = liveImg?.naturalHeight || liveImg?.height || 0;
+                    if (w < MIN_DIM || h < MIN_DIM) return;
+                    try {
+                        const abs = new URL(src, window.location.href).href;
+                        const rawExt = (abs.match(/\.(jpe?g|png|gif|webp)(\?|$)/i)?.[1] || 'jpg').toLowerCase();
+                        const ext = rawExt === 'jpeg' ? 'jpg' : rawExt === 'webp' ? 'jpg' : rawExt;
+                        const id = `img-${idx++}`;
+                        externalSrcs.push({ id, src: abs, ext });
+                        img.setAttribute('src', `images/${id}.${ext}`);
+                    } catch (e) {}
+                });
+
+                return { media: embedded, externalSrcs };
+            })(docClone);
+
             const reader = new Readability(docClone);
             const article = reader.parse();
 
@@ -197,7 +282,9 @@ export function extractArticle() {
                         body,
                         rawText: textContent,
                         sourceUrl: window.location.href
-                    }
+                    },
+                    media,
+                    externalSrcs
                 };
             }
         }

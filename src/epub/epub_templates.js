@@ -22,7 +22,7 @@ const EpubTemplates = {
    * Generate content.opf
    * @param {Object} metadata - { title, author, date, uuid, coverMediaType }
    */
-  contentOpf(metadata) {
+  contentOpf(metadata, images = []) {
     const { title, author, date, uuid, coverMediaType } = metadata;
     const creatorLine = author
       ? `    <dc:creator>${this.escapeXml(author)}</dc:creator>`
@@ -54,6 +54,7 @@ ${coverMeta}
     <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
     <item id="content" href="content.xhtml" media-type="application/xhtml+xml"/>
 ${coverItem}
+${images.map(img => `    <item id="${img.id}" href="images/${img.id}.${img.ext}" media-type="${img.mimeType}"/>`).join('\n')}
   </manifest>
   <spine toc="ncx">
     <itemref idref="content"/>
@@ -138,6 +139,12 @@ ${coverItem}
     p {
       margin: 0.9em 0;
       text-align: left;
+    }
+    img {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      margin: 1em auto;
     }
     blockquote {
       margin: 1em 1.5em;
