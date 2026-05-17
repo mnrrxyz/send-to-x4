@@ -20,20 +20,22 @@ const QueueSync = {
         const isCrosspoint = settings.firmwareType === 'crosspoint';
         const deviceIp = settings.deviceIp || (isCrosspoint ? '192.168.4.1' : '192.168.3.3');
 
-        const reachable = await this.pingX4(deviceIp);
+        const reachable = await this.pingX4(deviceIp, isCrosspoint);
         if (!reachable) return { synced: 0, failed: 0, skipped: true };
 
         return await this.drainQueue(deviceIp, isCrosspoint);
     },
 
-    async pingX4(ip) {
+    async pingX4(ip, isCrosspoint) {
+        // CrossPoint uses /api/files, stock uses /list
+        const url = isCrosspoint
+            ? `http://${ip}/api/files?path=/`
+            : `http://${ip}/list?dir=/`;
         try {
             const controller = new AbortController();
-            setTimeout(() => controller.abort(), 3000);
-            const response = await fetch(`http://${ip}/list?dir=/`, {
-                method: 'GET',
-                signal: controller.signal
-            });
+            const timer = setTimeout(() => controller.abort(), 3000);
+            const response = await fetch(url, { method: 'GET', signal: controller.signal });
+            clearTimeout(timer);
             return response.ok;
         } catch {
             return false;
