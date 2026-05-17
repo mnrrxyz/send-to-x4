@@ -142,8 +142,11 @@ export class ArticleManager {
                 });
                 if (!dataUrl) continue;
                 images.push({ id, data: dataUrl.split(',')[1], mimeType: blob.type || 'image/jpeg', ext: actualExt });
-                fixBodySrc(id, ext);       // fix the placeholder path Readability absolutized
-                if (actualExt !== ext) fixBodySrc(id, actualExt); // also fix if ext changed
+                fixBodySrc(id, ext); // fix the absolutized placeholder back to relative
+                // if the actual extension differs from the URL-based one, rename the reference too
+                if (actualExt !== ext) {
+                    article.body = article.body.split(`images/${id}.${ext}`).join(`images/${id}.${actualExt}`);
+                }
             } catch (e) { /* skip — timeout, CORS, or network */ }
         }
 
